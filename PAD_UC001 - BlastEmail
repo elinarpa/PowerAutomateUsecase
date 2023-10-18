@@ -1,4 +1,5 @@
 # Copy and paste the lines below in PAD to see the flow
+# Change the input path and output folder path if you are running from your local machine
 
 
 System.TerminateProcess.TerminateProcessByName ProcessName: $'''EXCEL'''
