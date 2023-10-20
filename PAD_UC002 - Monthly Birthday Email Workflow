@@ -1,31 +1,47 @@
-#Copy and paste the code in Power automate dekstop
+# Copy and paste the following code inside PAD
 
-System.TerminateProcess.TerminateProcessByName ProcessName: $'''EXCEL'''
-CALL ReadConfig
-SET Excel_File_Path TO Config['SubscriberData']
-DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateOnly CurrentDateTime=> CurrentDateTime
-Text.ConvertDateTimeToText.FromCustomDateTime DateTime: CurrentDateTime CustomFormat: $'''MM''' Result=> FormattedMonth
-SET SQLScript TO $'''select * from [Sheet1$]
+FUNCTION Main_copy GLOBAL
+    System.TerminateProcess.TerminateProcessByName ProcessName: $'''EXCEL'''
+    SET SelectedFile TO $'''C:\\Users\\Ideapad Gaming\\Documents\\PAD_UC002 - Monthly Birthday Email Workflow\\000_Config.xlsx'''
+    SET Config TO {{ }}
+    Excel.LaunchExcel.LaunchAndOpenUnderExistingProcess Path: SelectedFile Visible: False ReadOnly: False Instance=> ConfigExcelInstance
+    Excel.GetAllWorksheets Instance: ConfigExcelInstance Worksheets=> SheetNames
+    LOOP FOREACH CurrentSheet IN SheetNames
+        Excel.SetActiveWorksheet.ActivateWorksheetByName Instance: ConfigExcelInstance Name: CurrentSheet
+        Excel.ReadFromExcel.ReadAllCells Instance: ConfigExcelInstance ReadAsText: False FirstLineIsHeader: True RangeValue=> ExcelData
+        LOOP FOREACH CurrentItem IN ExcelData
+            SET TempKey TO CurrentItem[0]
+            SET TempValue TO CurrentItem[1]
+            SET Config[TempKey] TO TempValue
+        END
+    END
+    Excel.CloseExcel.Close Instance: ConfigExcelInstance
+    CALL ReadConfig
+    SET Excel_File_Path TO Config['SubscriberData']
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateOnly CurrentDateTime=> CurrentDateTime
+    Text.ConvertDateTimeToText.FromCustomDateTime DateTime: CurrentDateTime CustomFormat: $'''MM''' Result=> FormattedMonth
+    SET SQLScript TO $'''select * from [Sheet1$]
 where Month(Birthday) = %FormattedMonth%'''
-Database.Connect ConnectionString: $'''Provider=Microsoft.ACE.OLEDB.12.0;Data Source=%Excel_File_Path%;Extended Properties=\"Excel 12.0 Xml;HDR=YES\";''' Connection=> SQLConnection
-Database.ExecuteSqlStatement.Execute Connection: SQLConnection Statement: SQLScript Timeout: 30 Result=> QueryResult
-Database.Close Connection: SQLConnection
-LOOP FOREACH CurrentSub IN QueryResult
-    SET SubName TO $'''%CurrentSub['First Name']% %CurrentSub['Last Name']%'''
-    File.ReadTextFromFile.ReadText File: Config['HTMLEmail'] Encoding: File.TextFileEncoding.UTF8 Content=> FileContents
-    Text.Replace Text: FileContents TextToFind: $'''<SubName>''' IsRegEx: False IgnoreCase: False ReplaceWith: SubName ActivateEscapeSequences: False Result=> Replaced
-    Text.Replace Text: Replaced TextToFind: $'''<ImagePath>''' IsRegEx: False IgnoreCase: False ReplaceWith: Config['Image'] ActivateEscapeSequences: False Result=> Replaced
-    Email.SendEmail.AuthenticateAndSend SMTPServer: $'''smtp.gmail.com''' Port: 465 EnableSSL: True Username: $'''rpaelinaaziera@gmail.com''' Password: P'AQAAANCMnd8BFdERjHoAwE/Cl+sBAAAApgNiG2QRXUaFxpQV2MNR4gQAAAACAAAAAAAQZgAAAAEAACAAAAChmilaBwQqz87aXc/YrTI1ctliaUHksPh8SQfLheyr/gAAAAAOgAAAAAIAACAAAAAMf1MebLVhEh5agGJAvxfQ1FtMxYHxKusTkAXT3wiM6DAAAADUqaZwmNSiim4T56GLzLmvLPunMpE3IH4ZvK+c5ea676luv00BwtGel7rtaIdyrVpAAAAANlRFhJKQdyy+8aeBooOZiKpr70BK3O46UE7isUc7/M6cKAVNuWvUi2y/bd1EECFa7XPTcFhoAMAmxdT1fS5kMQ==' AcceptUntrustedCertificates: False SendFrom: $'''PAD_rpaelina@gmail.com''' SendTo: CurrentSub['Email'] Subject: $'''UC001 - Hello ''' Body: Replaced IsBodyHtml: True
+    Database.Connect ConnectionString: $'''Provider=Microsoft.ACE.OLEDB.12.0;Data Source=%Excel_File_Path%;Extended Properties=\"Excel 12.0 Xml;HDR=YES\";''' Connection=> SQLConnection
+    Database.ExecuteSqlStatement.Execute Connection: SQLConnection Statement: SQLScript Timeout: 30 Result=> QueryResult
+    Database.Close Connection: SQLConnection
+    LOOP FOREACH CurrentSub IN QueryResult
+        SET SubName TO $'''%CurrentSub['First Name']% %CurrentSub['Last Name']%'''
+        File.ReadTextFromFile.ReadText File: Config['HTMLEmail'] Encoding: File.TextFileEncoding.UTF8 Content=> FileContents
+        Text.Replace Text: FileContents TextToFind: $'''<SubName>''' IsRegEx: False IgnoreCase: False ReplaceWith: SubName ActivateEscapeSequences: False Result=> Replaced
+        Text.Replace Text: Replaced TextToFind: $'''<ImagePath>''' IsRegEx: False IgnoreCase: False ReplaceWith: Config['Image'] ActivateEscapeSequences: False Result=> Replaced
+        Email.SendEmail.AuthenticateAndSend SMTPServer: $'''smtp.gmail.com''' Port: 465 EnableSSL: True Username: $'''rpaelinaaziera@gmail.com''' Password: P'AQAAANCMnd8BFdERjHoAwE/Cl+sBAAAApgNiG2QRXUaFxpQV2MNR4gQAAAACAAAAAAAQZgAAAAEAACAAAAChmilaBwQqz87aXc/YrTI1ctliaUHksPh8SQfLheyr/gAAAAAOgAAAAAIAACAAAAAMf1MebLVhEh5agGJAvxfQ1FtMxYHxKusTkAXT3wiM6DAAAADUqaZwmNSiim4T56GLzLmvLPunMpE3IH4ZvK+c5ea676luv00BwtGel7rtaIdyrVpAAAAANlRFhJKQdyy+8aeBooOZiKpr70BK3O46UE7isUc7/M6cKAVNuWvUi2y/bd1EECFa7XPTcFhoAMAmxdT1fS5kMQ==' AcceptUntrustedCertificates: False SendFrom: $'''PAD_rpaelina@gmail.com''' SendTo: CurrentSub['Email'] Subject: $'''UC001 - Hello ''' Body: Replaced IsBodyHtml: True
     ON ERROR
         SET StatusEmail TO $'''Fail'''
     END
-    IF StatusEmail = $'''Fail''' THEN
-        Variables.ModifyDataTableItem DataTable: QueryResult ColumnNameOrIndex: 3 RowIndex: RowCounter Value: $'''Failed to send %CurrentSub['Email']%'''
-    ELSE
-        Variables.ModifyDataTableItem DataTable: QueryResult ColumnNameOrIndex: 3 RowIndex: RowCounter Value: $'''Successfully sent to %CurrentSub['Email']%'''
+        IF StatusEmail = $'''Fail''' THEN
+            Variables.ModifyDataTableItem DataTable: QueryResult ColumnNameOrIndex: 3 RowIndex: RowCounter Value: $'''Failed to send %CurrentSub['Email']%'''
+        ELSE
+            Variables.ModifyDataTableItem DataTable: QueryResult ColumnNameOrIndex: 3 RowIndex: RowCounter Value: $'''Successfully sent to %CurrentSub['Email']%'''
+        END
+        Variables.IncreaseVariable Value: RowCounter IncrementValue: 1
     END
-    Variables.IncreaseVariable Value: RowCounter IncrementValue: 1
-END
-Excel.LaunchExcel.LaunchUnderExistingProcess Visible: False Instance=> OutputExcelInstance
-Excel.WriteToExcel.Write Instance: OutputExcelInstance Value: QueryResult
-Excel.CloseExcel.CloseAndSaveAs Instance: OutputExcelInstance DocumentFormat: Excel.ExcelFormat.OpenXmlWorkbook DocumentPath: $'''%Config['Outputfolder']%\\003_Output.xlsx'''
+    Excel.LaunchExcel.LaunchUnderExistingProcess Visible: False Instance=> OutputExcelInstance
+    Excel.WriteToExcel.Write Instance: OutputExcelInstance Value: QueryResult
+    Excel.CloseExcel.CloseAndSaveAs Instance: OutputExcelInstance DocumentFormat: Excel.ExcelFormat.OpenXmlWorkbook DocumentPath: $'''%Config['Outputfolder']%\\003_Output.xlsx'''
+END FUNCTION
